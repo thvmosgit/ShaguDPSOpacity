@@ -1,4 +1,4 @@
--- ShaguDPS Opacity
+-- ShaguDPS Opacity - OEVG edition
 --
 -- Adds an "OOC Opacity" row to ShaguDPS's settings window (under "Window"): out of combat
 -- all ShaguDPS windows are shown at that opacity, in combat at full opacity. 10% - 100% in
@@ -14,7 +14,7 @@ local config = ShaguDPS.config
 local settings = ShaguDPS.settings
 local window = ShaguDPS.window
 
-local MIN_ALPHA, MAX_ALPHA, STEP = 0.1, 1, 0.1
+local MIN_ALPHA, MAX_ALPHA, STEP = 0, 1, 0.1
 
 local function oocAlpha()
 	local a = tonumber(config.ooc_alpha) or 1
@@ -48,28 +48,84 @@ window.Refresh = function(force, report)
 end
 
 -- Settings row: ShaguDPS's own number selector (< value >), with its change function
--- replaced so it steps by 10% and shows a percentage. CreateConfig doesn't return the
--- selector, so it's picked up as the newest child of the settings frame.
-local before = { settings:GetChildren() }
-settings:CreateConfig("OOC Opacity", "ooc_alpha", "number")
-local after = { settings:GetChildren() }
-local input = after[table.getn(after)]
-if table.getn(after) > table.getn(before) and input and input.caption then
+-- replaced so it steps by 10% and shows a percentage.
+-- OEVG builds its settings controls on the first opening.
+-- Run its existing OnShow first, then add the opacity row.
+local opacityRowAdded = false
+
+local function AddOpacityRow()
+	if opacityRowAdded then return end
+	if not settings.CreateConfig then return end
+
+	settings:CreateConfig("OOC Opacity", "ooc_alpha", "number")
+
+	-- Find the selector by its config key rather than assuming
+	-- GetChildren() returns newly created controls last.
+	local input
+	local children = { settings:GetChildren() }
+
+	for _, child in pairs(children) do
+		if child.entry == "ooc_alpha" and child.caption then
+			input = child
+			break
+		end
+	end
+
+	if not input then return end
+	opacityRowAdded = true
+
 	input.change = function(self, mod)
 		local a = oocAlpha()
+
 		if mod then
 			a = math.floor((a + mod * STEP) * 10 + 0.5) / 10
 			if a < MIN_ALPHA then a = MIN_ALPHA end
 			if a > MAX_ALPHA then a = MAX_ALPHA end
 		end
+
 		config.ooc_alpha = a
 		self.caption:SetText(math.floor(a * 100 + 0.5) .. "%")
-		self.left:SetAlpha(a <= MIN_ALPHA and 0.25 or 1)
-		self.right:SetAlpha(a >= MAX_ALPHA and 0.25 or 1)
+
+		-- Classic theme uses enabled/disabled stock buttons;
+		-- Flat theme uses alpha to indicate the limits.
+		if ShaguDPS.classic then
+			if a <= MIN_ALPHA then
+				self.left:Disable()
+			else
+				self.left:Enable()
+			end
+
+			if a >= MAX_ALPHA then
+				self.right:Disable()
+			else
+				self.right:Enable()
+			end
+		else
+			self.left:SetAlpha(a <= MIN_ALPHA and 0.25 or 1)
+			self.right:SetAlpha(a >= MAX_ALPHA and 0.25 or 1)
+		end
+
 		applyAlpha()
 	end
+
 	-- make room for the extra row
-	settings:SetHeight(settings:GetHeight() + 18)
+	settings:SetHeight(settings:GetHeight() + 20)
+
+	-- CreateConfig shows the selector before we replace change(),
+	-- so update its initial caption explicitly.
+	input:change()
+end
+
+local originalOnShow = settings:GetScript("OnShow")
+
+settings:SetScript("OnShow", function()
+	if originalOnShow then originalOnShow() end
+	AddOpacityRow()
+end)
+
+-- Also handle installation after settings have already been built.
+if settings.built then
+	AddOpacityRow()
 end
 
 local events = CreateFrame("Frame")
