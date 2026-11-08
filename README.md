@@ -1,4 +1,4 @@
-# ShaguDPS Opacity
+# ShaguDPS Opacity - OEVG Edition
 
 Adds an out-of-combat opacity setting to [OEVG's fork of ShaguDPS](https://octowow.st/git/OEVG/ShaguDPS) for
 WoW 1.12. Out of combat, every ShaguDPS window fades to that level. In combat, or while you
